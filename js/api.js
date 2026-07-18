@@ -1,5 +1,5 @@
 /* Minimal fetch wrapper for the InvoiceMD backend API. */
-const API_BASE = "/api";
+const API_BASE = "https://invoice-md-backend.vercel.app/api";
 
 const Api = {
   token: localStorage.getItem("invoicemd_token") || null,
