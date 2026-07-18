@@ -46,9 +46,19 @@ root.addEventListener("submit", async (e) => {
 
   if (e.target.id === "login-form") {
     const fd = new FormData(e.target);
+    const email = fd.get("email");
+    const password = fd.get("password");
+    if (!Validate.isNonEmpty(email)) {
+      State.set({ error: "Email is required" });
+      return;
+    }
+    if (!Validate.isNonEmpty(password)) {
+      State.set({ error: "Password is required" });
+      return;
+    }
     State.set({ loading: true, error: null });
     try {
-      const { token, doctor } = await Api.login({ email: fd.get("email"), password: fd.get("password") });
+      const { token, doctor } = await Api.login({ email, password });
       Api.setToken(token);
       State.set({ doctor, loading: false });
       await loadAppData();
@@ -60,6 +70,36 @@ root.addEventListener("submit", async (e) => {
   if (e.target.id === "register-form") {
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
+
+    if (!Validate.isNonEmpty(payload.name)) {
+      State.set({ error: "Name is required" });
+      return;
+    }
+    if (!Validate.isEmail(payload.email)) {
+      State.set({ error: "Enter a valid email address" });
+      return;
+    }
+    if (!Validate.isPassword(payload.password, 8)) {
+      State.set({ error: "Password must be at least 8 characters" });
+      return;
+    }
+    if (payload.password !== payload.confirmPassword) {
+      State.set({ error: "Passwords do not match" });
+      return;
+    }
+    if (!Validate.isNonEmpty(payload.registrationNo)) {
+      State.set({ error: "Medical registration number is required" });
+      return;
+    }
+    if (Validate.isNonEmpty(payload.pan) && !Validate.isPAN(payload.pan)) {
+      State.set({ error: "PAN must be in the format ABCDE1234F" });
+      return;
+    }
+    if (Validate.isNonEmpty(payload.gst) && !Validate.isGST(payload.gst)) {
+      State.set({ error: "GSTIN must be a valid 15-character GST number" });
+      return;
+    }
+
     State.set({ loading: true, error: null });
     try {
       const { token, doctor } = await Api.register(payload);
@@ -74,6 +114,32 @@ root.addEventListener("submit", async (e) => {
   if (e.target.id === "profile-form") {
     const fd = new FormData(e.target);
     const payload = Object.fromEntries(fd.entries());
+
+    if (!Validate.isNonEmpty(payload.name)) {
+      showToast("Name is required", true);
+      return;
+    }
+    if (Validate.isNonEmpty(payload.pan) && !Validate.isPAN(payload.pan)) {
+      showToast("PAN must be in the format ABCDE1234F", true);
+      return;
+    }
+    if (Validate.isNonEmpty(payload.gst) && !Validate.isGST(payload.gst)) {
+      showToast("GSTIN must be a valid 15-character GST number", true);
+      return;
+    }
+    if (!Validate.isNonEmpty(payload.clinicName)) {
+      showToast("Clinic name is required", true);
+      return;
+    }
+    if (Validate.isNonEmpty(payload.upiId) && !Validate.isUPI(payload.upiId)) {
+      showToast("UPI ID must look like name@bank", true);
+      return;
+    }
+    if (payload.defaultConsultationFee !== "" && !Validate.isNonNegativeNumber(payload.defaultConsultationFee)) {
+      showToast("Default consultation fee cannot be negative", true);
+      return;
+    }
+
     State.set({ loading: true });
     try {
       const doctor = await Api.updateProfile(payload);
@@ -104,13 +170,44 @@ root.addEventListener("submit", async (e) => {
 
   if (e.target.id === "prescription-form") {
     const s = State.get();
+
+    if (!Validate.isNonEmpty(s.rxPatient.patientName)) {
+      showToast("Patient name is required", true);
+      return;
+    }
+    if (Validate.isNonEmpty(s.rxPatient.patientAge) && !Validate.isPositiveNumber(s.rxPatient.patientAge)) {
+      showToast("Age must be a positive number", true);
+      return;
+    }
+    if (!Validate.isNonEmpty(s.rxPatient.patientGender)) {
+      showToast("Gender is required", true);
+      return;
+    }
+    // Only rows the doctor actually typed a medicine name into count; a spare blank
+    // row left over from "Add medicine" shouldn't block submission.
+    const usedMedicines = s.rxMedicines.filter((m) => Validate.isNonEmpty(m.name));
+    if (usedMedicines.length === 0) {
+      showToast("Add at least one medicine", true);
+      return;
+    }
+    const incompleteIdx = usedMedicines.findIndex((m) =>
+      !Validate.isNonEmpty(m.dosage) || !Validate.isNonEmpty(m.frequency) || !Validate.isNonEmpty(m.duration));
+    if (incompleteIdx !== -1) {
+      showToast(`${usedMedicines[incompleteIdx].name}: dosage, frequency and duration are required`, true);
+      return;
+    }
+    if (s.rxConsultationFee !== "" && !Validate.isNonNegativeNumber(s.rxConsultationFee)) {
+      showToast("Consultation fee cannot be negative", true);
+      return;
+    }
+
     State.set({ loading: true });
     try {
       const prescription = await Api.createPrescription({
         ...s.rxPatient,
         date: s.rxDate,
         diagnosis: s.rxDiagnosis,
-        medicines: s.rxMedicines,
+        medicines: usedMedicines,
         advice: s.rxAdvice,
         followUpDate: s.rxFollowUpDate,
         consultationFee: s.rxConsultationFee
@@ -126,11 +223,20 @@ root.addEventListener("submit", async (e) => {
 });
 
 root.addEventListener("click", async (e) => {
+  if (e.target.id === "open-mobile-nav" || e.target.closest("#open-mobile-nav")) {
+    State.set({ mobileNavOpen: true });
+    return;
+  }
+  if (e.target.id === "close-mobile-nav" || e.target.closest("#close-mobile-nav") || e.target.id === "sidebar-backdrop") {
+    State.set({ mobileNavOpen: false });
+    return;
+  }
+
   const nav = e.target.closest("[data-nav]");
   if (nav) {
     const view = nav.getAttribute("data-nav");
     if (view === "new-invoice") {
-      State.set({ view, selectedHospitalId: null, formValues: {}, invoiceDescription: "", showAddHospitalForm: false });
+      State.set({ view, selectedHospitalId: null, formValues: {}, invoiceDescription: "", showAddHospitalForm: false, mobileNavOpen: false });
     } else if (view === "new-prescription") {
       State.set({
         view,
@@ -140,10 +246,11 @@ root.addEventListener("click", async (e) => {
         rxAdvice: "",
         rxFollowUpDate: "",
         rxConsultationFee: State.data.doctor && State.data.doctor.defaultConsultationFee ? String(State.data.doctor.defaultConsultationFee) : "",
-        rxMedicines: [{ name: "", dosage: "", frequency: "", duration: "", instructions: "" }]
+        rxMedicines: [{ name: "", dosage: "", frequency: "", duration: "", instructions: "" }],
+        mobileNavOpen: false
       });
     } else {
-      State.set({ view });
+      State.set({ view, mobileNavOpen: false });
     }
     return;
   }
@@ -171,6 +278,22 @@ root.addEventListener("click", async (e) => {
   if (e.target.id === "submit-invoice" || e.target.closest("#submit-invoice")) {
     const s = State.get();
     const hospital = s.hospitals.find((h) => h.id === s.selectedHospitalId);
+    if (!hospital) {
+      showToast("Hospital is required", true);
+      return;
+    }
+    if (!Validate.isNonEmpty(s.invoiceMonth)) {
+      showToast("Invoice date is required", true);
+      return;
+    }
+    const negativeField = hospital.requiredFields.find((f) => {
+      const raw = s.formValues[f.key];
+      return raw !== undefined && raw !== "" && raw !== null && Number(raw) < 0;
+    });
+    if (negativeField) {
+      showToast(`${negativeField.label} cannot be negative`, true);
+      return;
+    }
     State.set({ loading: true });
     try {
       const { invoice, warnings } = await Api.createInvoice({

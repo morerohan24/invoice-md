@@ -13,6 +13,7 @@ const State = {
     viewingInvoiceId: null,
     viewingPrescriptionId: null,
     showAddHospitalForm: false,
+    mobileNavOpen: false,
     searchQuery: "",
     statusFilter: "all", // all | Submitted | Approved | Accounts | Paid | Rejected
     prescriptionPaymentFilter: "all", // all | paid | pending
