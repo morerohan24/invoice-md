@@ -165,6 +165,7 @@ const Api = {
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
+
     a.href = url;
     a.download = filename || "invoice.pdf";
 
@@ -220,6 +221,31 @@ const Api = {
   // PRESCRIPTION PDF
   // =========================
 
+  /*
+   * Get prescription PDF as a File.
+   *
+   * This is used when sharing the actual PDF
+   * through the device share menu / WhatsApp.
+   */
+  async getPrescriptionPdf(id, filename) {
+    const res = await this.request(`/prescriptions/${id}/pdf`, {
+      raw: true
+    });
+
+    const blob = await res.blob();
+
+    return new File(
+      [blob],
+      filename || "prescription.pdf",
+      {
+        type: "application/pdf"
+      }
+    );
+  },
+
+  /*
+   * Download prescription PDF normally.
+   */
   async downloadPrescriptionPdf(id, filename) {
     const res = await this.request(`/prescriptions/${id}/pdf`, {
       raw: true
@@ -230,6 +256,7 @@ const Api = {
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
+
     a.href = url;
     a.download = filename || "prescription.pdf";
 
@@ -240,3 +267,4 @@ const Api = {
     URL.revokeObjectURL(url);
   }
 };
+
