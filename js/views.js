@@ -48,12 +48,6 @@ function whatsappLink(inv, kind) {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
-function prescriptionWhatsappLink(p) {
-  const medList = p.medicines.map((m) => `- ${m.name}${m.dosage ? ` (${m.dosage})` : ""}${m.frequency ? `, ${m.frequency}` : ""}`).join("\n");
-  const message = `Prescription ${p.prescriptionNumber} for ${p.patientName} — ${new Date(p.date).toLocaleDateString("en-IN")}\n\n${medList}${p.advice ? `\n\nAdvice: ${p.advice}` : ""}${p.followUpDate ? `\nFollow-up: ${new Date(p.followUpDate).toLocaleDateString("en-IN")}` : ""}`;
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
-}
-
 /* ---------------- Auth views ---------------- */
 
 function viewLogin(s) {
@@ -94,15 +88,11 @@ function viewRegister(s) {
           <div class="field"><label>Qualification</label><input name="qualification" placeholder="MBBS, MD" /></div>
         </div>
         <div class="field"><label>Email</label><input type="email" name="email" required placeholder="you@example.com" /></div>
+        <div class="field"><label>Password</label><input type="password" name="password" required minlength="6" placeholder="At least 6 characters" /></div>
         <div class="field-row">
-          <div class="field"><label>Password</label><input type="password" name="password" required minlength="8" placeholder="At least 8 characters" /></div>
-          <div class="field"><label>Confirm password</label><input type="password" name="confirmPassword" required minlength="8" placeholder="Re-enter password" /></div>
+          <div class="field"><label>Medical registration no.</label><input name="registrationNo" placeholder="MH-12345" /></div>
+          <div class="field"><label>PAN</label><input name="pan" placeholder="ABCDE1234F" /></div>
         </div>
-        <div class="field-row">
-          <div class="field"><label>Medical registration no.</label><input name="registrationNo" required placeholder="MH-12345" /></div>
-          <div class="field"><label>PAN <span class="muted" style="text-transform:none;font-weight:500;">(optional)</span></label><input name="pan" placeholder="ABCDE1234F" /></div>
-        </div>
-        <div class="field"><label>GSTIN <span class="muted" style="text-transform:none;font-weight:500;">(optional)</span></label><input name="gst" placeholder="27ABCDE1234F1Z5" /></div>
         <button class="btn btn-primary btn-block" type="submit" ${s.loading ? "disabled" : ""}>
           ${s.loading ? "Creating account…" : "Create account"}
         </button>
@@ -127,13 +117,9 @@ function appShell(s, content) {
   const pendingRxCount = s.prescriptions.filter((p) => p.payment.status === "pending").length;
 
   return `
-  <div class="shell ${s.mobileNavOpen ? "mobile-nav-open" : ""}">
-    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+  <div class="shell">
     <aside class="sidebar">
-      <div class="brand">
-        <span class="mark">Md</span><h1>InvoiceMD</h1>
-        <button class="icon-btn sidebar-close-btn" id="close-mobile-nav" aria-label="Close menu">${Icon.close}</button>
-      </div>
+      <div class="brand"><span class="mark">Md</span><h1>InvoiceMD</h1></div>
       ${navItem("dashboard", "Dashboard", "dashboard", v === "dashboard")}
       ${navItem("new-invoice", "New Invoice", "invoice", v === "new-invoice")}
       ${navItem("invoices", "Invoice History", "history", v === "invoices", overdueCount || null)}
@@ -155,7 +141,6 @@ function appShell(s, content) {
     </aside>
     <main class="main">
       <div class="topbar">
-        <button class="icon-btn mobile-menu-btn" id="open-mobile-nav" aria-label="Open menu">${Icon.menu}</button>
         <div class="topbar-search">
           ${Icon.search}
           <input id="topbar-search" placeholder="Search invoices or hospitals…" value="${s.searchQuery || ""}" />
@@ -634,8 +619,8 @@ function viewNewPrescription(s) {
             <div class="field-row">
               <div class="field">
                 <label>Gender</label>
-                <select data-patient-field="patientGender" required>
-                  <option value="" ${!p.patientGender ? "selected" : ""} disabled>Select gender</option>
+                <select data-patient-field="patientGender">
+                  <option value="" ${!p.patientGender ? "selected" : ""}>Not specified</option>
                   <option value="Male" ${p.patientGender === "Male" ? "selected" : ""}>Male</option>
                   <option value="Female" ${p.patientGender === "Female" ? "selected" : ""}>Female</option>
                   <option value="Other" ${p.patientGender === "Other" ? "selected" : ""}>Other</option>
@@ -720,7 +705,14 @@ function viewPrescriptions(s) {
       </td>
       <td class="actions-cell">
         <button class="btn btn-ghost btn-sm" data-view-prescription="${p.id}" title="View">${Icon.eye}</button>
-        <a class="btn btn-whatsapp btn-sm" href="${prescriptionWhatsappLink(p)}" target="_blank" rel="noopener" title="Share on WhatsApp">${Icon.whatsapp}</a>
+        <button
+          type="button"
+          class="btn btn-whatsapp btn-sm"
+          data-share-prescription="${p.id}"
+          data-filename="${p.prescriptionNumber}.pdf"
+          data-patient="${p.patientName}"
+          title="Send prescription PDF on WhatsApp"
+        >${Icon.whatsapp}</button>
         <button class="btn btn-ghost btn-sm" data-download-prescription="${p.id}" data-filename="${p.prescriptionNumber}.pdf" title="Download PDF">${Icon.download}</button>
         <button class="btn btn-danger btn-sm" data-delete-prescription="${p.id}" data-prescription-number="${p.prescriptionNumber}" title="Delete">${Icon.trash}</button>
       </td>
@@ -796,7 +788,13 @@ function viewPrescriptionModal(s) {
       </div>
       <div class="modal-footer">
         ${p.payment.status === "pending" ? `<button class="btn btn-soft btn-sm" data-record-payment="${p.id}" data-payment-label="${p.prescriptionNumber}" data-payment-amount="${p.consultationFee}">Record payment</button>` : ""}
-        <a class="btn btn-whatsapp btn-sm" href="${prescriptionWhatsappLink(p)}" target="_blank" rel="noopener">${Icon.whatsapp} WhatsApp</a>
+        <button
+          type="button"
+          class="btn btn-whatsapp btn-sm"
+          data-share-prescription="${p.id}"
+          data-filename="${p.prescriptionNumber}.pdf"
+          data-patient="${p.patientName}"
+        >${Icon.whatsapp} WhatsApp</button>
         <button class="btn btn-ghost btn-sm" data-download-prescription="${p.id}" data-filename="${p.prescriptionNumber}.pdf">${Icon.download} Download PDF</button>
         <button class="btn btn-primary btn-sm" id="close-prescription-modal-secondary">Close</button>
       </div>
